@@ -63,13 +63,13 @@ class Topology:
             # If the intersection is empty, we're fine
             if not intersection:
                 continue
-            # Otherwise, we need to make sure there's a basis subset contained in their intersection
-            if not any(map(lambda x: x <= intersection, subsets)):
+            # Otherwise, we need to make sure every point in the intersection is contained in some basis subset which is contained in the intersection
+            if not any([point in subset and subset <= intersection for subset in subsets for point in intersection]):
                 return False, set1, set2
         return True, None, None
 
     @classmethod
-    def fromMinimal(cls, base_subsets):
+    def fromSubbasis(cls, base_subsets):
         # Check that all subsets are of type set or frozenset
         if not all([isinstance(x, (set, frozenset)) for x in base_subsets]):
             raise TypeError('all elements of the topology must be sets')

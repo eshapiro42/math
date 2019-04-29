@@ -5,6 +5,9 @@ class Topology:
         # Check that all subsets are of type set or frozenset
         if not all([isinstance(x, (set, frozenset)) for x in subsets]):
             raise TypeError('all elements of the topology must be sets')
+        # Check for the empty set
+        if not set() in subsets:
+            raise ValueError('every topology must contain the empty set')
         # Check pairwise unions
         unions, set1, set2 = self.pairwise_unions(subsets)
         if not unions:

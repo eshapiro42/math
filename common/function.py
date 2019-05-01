@@ -8,6 +8,12 @@ class Function:
         mapping (dict): value, image pairs (basically {x: f(x) for x in domain})
         domain (Set): the function's domain
         codomain (Set): the function's codomain
+
+    Properties:
+        inverse (Function): the function's inverse, if it has one
+        is_injective (bool): whether the function is injective
+        is_surjective (bool): whether the function is surjective
+        is_bijective (bool): whether the function is bijective
     '''
 
     def __init__(self, mapping: dict, domain: Set, codomain: Set) -> None:

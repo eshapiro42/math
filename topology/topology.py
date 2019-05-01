@@ -216,11 +216,16 @@ class TopFunction(Function):
 
     Attributes:
         mapping (dict): value, image pairs (basically {x: f(x) for x in domain})
-        domain (Set): the function's domain
-        codomain (Set): the function's codomain
+        domain (TopSpace): the function's domain
+        codomain (TopSpace): the function's codomain
+
+    Properties:
+        inverse (TopFunction): the function's inverse, if it has one
+        is_continuous (bool): whether the function is continuous
+        is_homeomorphism (bool): whether the function is a homeomorphism
     '''
 
-    def __init__(self, mapping: dict, domain: Set, codomain: Set):
+    def __init__(self, mapping: dict, domain: TopSpace, codomain: TopSpace):
         if not isinstance(domain, TopSpace) or not isinstance(codomain, TopSpace):
             raise TypeError('domain and codomain must be of type TopSpace')
         super().__init__(mapping, domain, codomain)

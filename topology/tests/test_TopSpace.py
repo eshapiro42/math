@@ -49,14 +49,14 @@ def test_create_topology_open_sets_not_subsets_of_space():
         X = TopSpace(set(), [set(), {1}])
 
 def test_create_topology_from_subbasis():
-    space = set(range(3))
+    space = set(range(5))
     subbasis = [{i} for i in space]
     X = TopSpace.from_subbasis(space, subbasis)
     assert X.space == frozenset(space)
     assert all([subset in X.open_sets for subset in subbasis])
 
 def test_create_topology_from_invalid_subbasis():
-    space = set(range(3))
+    space = set(range(5))
     subbasis = []
     with pytest.raises(Exception):
         X = TopSpace.from_subbasis(space, subbasis)

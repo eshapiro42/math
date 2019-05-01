@@ -1,5 +1,6 @@
 '''Classes for topological spaces and functions between them'''
 
+import copy
 import itertools
 
 from typing import (
@@ -125,7 +126,10 @@ class TopSpace:
 
     @classmethod
     def from_subbasis(cls, space: AbstractSet, subbase_subsets: Iterable[AbstractSet]):
-        '''Construct a topological space from a subbasis'''
+        '''Construct a topological space from a subbasis
+
+        This method has exponential runtime complexity and is slow for large subbases.
+        '''
         # Check that all subsets are of type set or frozenset
         if not all([isinstance(x, (set, frozenset)) for x in subbase_subsets]):
             raise TypeError('all elements of the topology must be sets')
@@ -135,19 +139,27 @@ class TopSpace:
         # Add the empty set
         subbase_subsets.append(set())
         subbase_subsets = list(map(frozenset, subbase_subsets))
-        base_subsets = subbase_subsets[:]
-        # Loop through all distinct pairs of sets in subbase_subsets
-        for idx1, set1 in enumerate(subbase_subsets):
-            for offset, _ in enumerate(subbase_subsets[idx1:]):
-                intersection = frozenset(set1.intersection(*subbase_subsets[idx1:idx1 + offset]))
+        base_subsets = copy.deepcopy(subbase_subsets)
+        # For each number idx up to len(subbasis), append the
+        # intersection of all idx-length combinations
+        for idx, _ in enumerate(subbase_subsets, start=1):
+            combinations = itertools.combinations(subbase_subsets, idx)
+            for combination in combinations:
+                intersection = copy.deepcopy(space)
+                for subset in combination:
+                    intersection &= subset
                 base_subsets.append(intersection)
+        basis = list(set(map(frozenset, base_subsets)))
         # base_subsets is now a basis
-        top = cls.from_basis(space, base_subsets)
+        top = cls.from_basis(space, basis)
         return top
 
     @classmethod
     def from_basis(cls, space: AbstractSet, base_subsets: Iterable[AbstractSet]):
-        '''Construct a topological space from a basis'''
+        '''Construct a topological space from a basis
+
+        This method has exponential runtime complexity and is slow for large bases.
+        '''
         # Check that all subsets are of type set or frozenset
         if not all([isinstance(x, (set, frozenset)) for x in base_subsets]):
             raise TypeError('all elements of the topology must be sets')
@@ -157,16 +169,20 @@ class TopSpace:
         # Add the empty set
         base_subsets.append(set())
         base_subsets = list(map(frozenset, base_subsets))
-        subsets = base_subsets[:]
-        # Loop through all distinct pairs of sets in base_subsets
-        for idx1, set1 in enumerate(base_subsets):
-            for offset, _ in enumerate(base_subsets[idx1:]):
-                union = frozenset(set1.union(*base_subsets[idx1:idx1 + offset]))
+        subsets = copy.deepcopy(base_subsets)
+        # For each number idx up to len(subbasis), append the
+        # union of all idx-length combinations
+        for idx, _ in enumerate(base_subsets, start=1):
+            combinations = itertools.combinations(base_subsets, idx)
+            for combination in combinations:
+                union = set()
+                for subset in combination:
+                    union |= subset
                 subsets.append(union)
-        # Create a topology from subsets
-        top = cls(space, set(map(frozenset, subsets)))
+        open_sets = list(set(map(frozenset, subsets)))
+        # Create a topology from open_sets
+        top = cls(space, open_sets)
         return top
-
 
 class Function:
     '''Function (mapping between sets)

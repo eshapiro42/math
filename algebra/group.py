@@ -1,6 +1,5 @@
 '''Classes for groups and functions between them'''
 
-import copy
 import collections
 import itertools
 
@@ -17,14 +16,20 @@ class GroupElement(collections.Hashable):
         if value not in group:
             raise ValueError('value is not in group')
         self.value = value
-        self.group = group 
-        
+        self.group = group
+
     def __hash__(self):
         return super().__hash__()
 
     def __eq__(self, other):
-        return self.value == other.value and self.group == other.group
-        
+        '''Test whether two GroupElements are equal.
+
+        This checks only the element's value and does not demand they come from
+        the same group. This is purposely done so that subgroup elements will
+        be treated as belonging to multiple groups.
+        '''
+        return self.value == other.value
+
     def __repr__(self):
         return '{}({})'.format(self.group.name, self.value)
 
@@ -38,11 +43,18 @@ class GroupElement(collections.Hashable):
         product = self.group.products[(self.value, other.value)]
         return GroupElement(product, self.group)
 
+    def __add__(self, other):
+        if self.group.abelian:
+            return self * other
+        else:
+            raise NotImplementedError('addition is not implemented for non-abelian groups')
+
     def __invert__(self):
         '''Find this element's inverse'''
         for candidate in self.group.group_set:
             if self.group.products[(self.value, candidate)] == self.group.identity.value:
                 return GroupElement(candidate, self.group)
+        raise ValueError('no inverse found')
 
 
 class Group:
@@ -66,6 +78,7 @@ class Group:
             raise ValueError('not closed under inverses')
         if not self.is_associative(group_set, products):
             raise ValueError('not associative')
+        self.abelian = self.is_abelian(group_set, products)
         self.identity = GroupElement(identity, self)
 
     @staticmethod
@@ -87,8 +100,10 @@ class Group:
         # loop through each element to see if it is the identity
         for candidate in group_set:
             # Check its product with all elements to see if it's always absorbed
-            if all([products[(candidate, other)] == other and products[(other, candidate)] == other
-                    for other in group_set]):
+            if all([
+                    products[(candidate, other)] == products[(other, candidate)] == other
+                    for other in group_set
+            ]):
                 return candidate
         return None
 
@@ -104,9 +119,19 @@ class Group:
     @staticmethod
     def is_associative(group_set: Set, products: dict) -> bool:
         '''Check that the group operation is associative'''
-        for first, second, third in itertools.product(group_set, repeat=3):
-            if products[(products[(first, second)], third)] != products[(first, products[(second, third)])]:
+        triples = itertools.product(group_set, repeat=3)
+        for a, b, c in triples:
+            if products[(products[(a, b)], c)] != products[(a, products[(b, c)])]:
                 return False
+        return True
+
+    @staticmethod
+    def is_abelian(group_set: Set, products: dict) -> bool:
+        '''Check that the group is commutative
+        '''
+        pairs = itertools.combinations(group_set, 2)
+        if not all([products[(a, b)] == products[(b, a)] for a, b in pairs]):
+            return False
         return True
 
     def __call__(self, element):
@@ -117,8 +142,7 @@ class Group:
         '''Check whether an element is in the group'''
         if isinstance(element, GroupElement):
             return element in map(lambda x: GroupElement(x, self), self.group_set)
-        else:
-            return element in self.group_set
+        return element in self.group_set
 
     def __iter__(self):
         return iter(map(lambda x: GroupElement(x, self), self.group_set))
@@ -171,20 +195,21 @@ class GroupFunction(Function):
         codomain (Group): the function's codomain
 
     Properties:
-        inverse (GorupFunction): the function's inverse, if it has one
+        inverse (GroupFunction): the function's inverse, if it has one
         is_homomorphism (bool): whether the function is a homomorphism
         is_isomorphism (bool): whether the function is an isomorphism
+        kernel(Group): the kernel of the homomorphism
     '''
 
-    def __init__(self, mapping: dict, domain: Group, codomain: Group):
+    def __init__(self, mapping: dict, domain: Group, codomain: Group, name: str):
         if not isinstance(domain, Group) or not isinstance(codomain, Group):
             raise TypeError('domain and codomain must be of type Group')
-        super().__init__(mapping, domain, codomain)
+        super().__init__(mapping, domain, codomain, name)
 
     def __matmul__(self, other):
         '''Create a new function from the composition self . other'''
         mapping = {k: self.mapping[other.mapping[k]] for k in other.mapping}
-        return GroupFunction(mapping, other.domain, self.codomain)    
+        return GroupFunction(mapping, other.domain, self.codomain, '{}@{}'.format(self.name, other.name))
 
     @property
     def inverse(self):
@@ -192,7 +217,7 @@ class GroupFunction(Function):
         if not self.is_bijective:
             raise ValueError('this function is not invertible')
         mapping = {v: k for k, v in self.mapping.items()}
-        return GroupFunction(mapping, self.codomain, self.domain)
+        return GroupFunction(mapping, self.codomain, self.domain, '~{}'.format(self.name))
 
     @property
     def is_homomorphism(self):
@@ -201,7 +226,7 @@ class GroupFunction(Function):
         if not all([self(first * second) == self(first) * self(second) for first, second in pairs]):
             return False
         return True
-            
+
     @property
     def is_isomorphism(self):
         '''Check whether a function between groups is an isomorphism'''
@@ -215,3 +240,17 @@ class GroupFunction(Function):
         if not self.inverse.is_homomorphism:
             return False
         return True
+
+    @property
+    def kernel(self):
+        '''The kernel of the homomorphism'''
+        ker_set = Set()
+        # Loop through all elements of the domain
+        for element in self.domain:
+            # Check whether each element gets mapped to the identity in the codomain
+            if self(element) == self.codomain.identity:
+                ker_set.add(element.value)
+        # Filter the domain's product for the kernel
+        ker_product = {(a, b): c for (a, b), c in self.domain.products.items() if a in ker_set and b in ker_set}
+        ker = Group(ker_set, ker_product, 'ker({})'.format(self.name))
+        return ker

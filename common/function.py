@@ -16,7 +16,7 @@ class Function:
         is_bijective (bool): whether the function is bijective
     '''
 
-    def __init__(self, mapping: dict, domain: Set, codomain: Set) -> None:
+    def __init__(self, mapping: dict, domain: Set, codomain: Set, name=None) -> None:
         # Check that all elements of the domain get mapped
         if not all([point in mapping.keys() for point in domain]):
             raise ValueError('all values in the domain must get mapped')
@@ -29,6 +29,7 @@ class Function:
         self.mapping = mapping
         self.domain = domain
         self.codomain = codomain
+        self.name = name
 
     def __call__(self, value):
         '''Given a value, return its image under the function'''

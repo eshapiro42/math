@@ -1,6 +1,7 @@
 '''Classes for groups and functions between them'''
 
 import copy
+import collections
 import itertools
 
 from common import (
@@ -9,18 +10,26 @@ from common import (
 )
 
 
-class GroupElement:
+class GroupElement(collections.Hashable):
     '''GroupElement'''
 
     def __init__(self, value, group):
+        if value not in group:
+            raise ValueError('value is not in group')
         self.value = value
-        self.group = group
+        self.group = group 
+        
+    def __hash__(self):
+        return super().__hash__()
 
+    def __eq__(self, other):
+        return self.value == other.value and self.group == other.group
+        
     def __repr__(self):
-        return 'GroupElement({}, {})'.format(self.value, self.group)
+        return '{}({})'.format(self.group.name, self.value)
 
     def __str__(self):
-        return self.value
+        return str(self.value)
 
     def __mul__(self, other):
         # Elements must come from the same group
@@ -44,7 +53,10 @@ class Group:
         group_set (Set): the underlying set
     '''
 
-    def __init__(self, group_set: Set, products: dict) -> None:
+    def __init__(self, group_set: Set, products: dict, name: str) -> None:
+        self.group_set = group_set
+        self.products = products
+        self.name = name
         if not self.closed_under_products(group_set, products):
             raise ValueError('not closed under products')
         identity = self.get_identity(group_set, products)
@@ -55,8 +67,6 @@ class Group:
         if not self.is_associative(group_set, products):
             raise ValueError('not associative')
         self.identity = GroupElement(identity, self)
-        self.group_set = group_set
-        self.products = products
 
     @staticmethod
     def closed_under_products(group_set: Set, products: dict) -> bool:
@@ -87,7 +97,7 @@ class Group:
         # Loop through each element
         for element in group_set:
             # Check that it has an inverse
-            if not any([products[(element, other)] == identity] for other in group_set):
+            if not any([products[(element, other)] == identity for other in group_set]):
                 return False
         return True
 
@@ -105,10 +115,13 @@ class Group:
 
     def __contains__(self, element):
         '''Check whether an element is in the group'''
-        return element in self.group_set
+        if isinstance(element, GroupElement):
+            return element in map(lambda x: GroupElement(x, self), self.group_set)
+        else:
+            return element in self.group_set
 
     def __iter__(self):
-        return iter(self.group_set)
+        return iter(map(lambda x: GroupElement(x, self), self.group_set))
 
     def __mul__(self, other):
         '''Given two groups, return their direct product'''
@@ -182,6 +195,23 @@ class GroupFunction(Function):
         return GroupFunction(mapping, self.codomain, self.domain)
 
     @property
-    def is_homeomorphism(self):
-        '''Check whether a function between topological spaces is a homomorphism'''
-        pass
+    def is_homomorphism(self):
+        '''Check whether a function between groups is a homomorphism'''
+        pairs = itertools.product(self.domain, repeat=2)
+        if not all([self(first * second) == self(first) * self(second) for first, second in pairs]):
+            return False
+        return True
+            
+    @property
+    def is_isomorphism(self):
+        '''Check whether a function between groups is an isomorphism'''
+        # Check that the function is bijective
+        if not self.is_bijective:
+            return False
+        # Check that the function is a homomorphism
+        if not self.is_homomorphism:
+            return False
+        # Check that the function's inverse is a homomorphism
+        if not self.inverse.is_homomorphism:
+            return False
+        return True

@@ -3,14 +3,6 @@
 import copy
 import itertools
 
-from typing import (
-    AbstractSet,
-    Dict,
-    Iterable,
-    Tuple,
-    Union,
-)
-
 from common import (
     Function,
     Set,
@@ -26,7 +18,7 @@ class TopSpace:
     '''
 
     def __init__(self, space: Set, open_sets: Set) -> None:
-        # Check that all open sets are of type set or frozenset
+        # Check that all open sets are of type Set
         if not all([isinstance(x, Set) for x in open_sets]):
             raise TypeError('all open sets must be of type Set')
         # Check that the empty set is open
@@ -44,7 +36,6 @@ class TopSpace:
         # Check pairwise intersections
         if not self.pairwise_intersections(open_sets):
             raise ValueError('open sets must be closed under intersections')
-        # Cast all open sets to frozensets so they are hashable
         self.open_sets = open_sets
         self.space = space
 
@@ -101,7 +92,7 @@ class TopSpace:
         except:
             return other < self.space
 
-    def is_closed(self, subset: AbstractSet) -> bool:
+    def is_closed(self, subset: Set) -> bool:
         '''Check whether a subset of a topological space is closed'''
         # A set is closed if its complement is open
         return self.space - subset in self.open_sets

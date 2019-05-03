@@ -9,151 +9,205 @@ from common import (
 )
 
 
-# class GroupElement(collections.Hashable):
-#     '''GroupElement'''
-
-#     def __init__(self, value, group):
-#         if value not in group:
-#             raise ValueError('value is not in group')
-#         self.value = value
-#         self.group = group
-
-#     def __hash__(self):
-#         return super().__hash__()
-
-#     def __eq__(self, other):
-#         '''Test whether two GroupElements are equal.
-
-#         This checks only the element's value and does not demand they come from
-#         the same group. This is purposely done so that subgroup elements will
-#         be treated as belonging to multiple groups.
-#         '''
-#         return self.value == other.value
-
-#     def __repr__(self):
-#         return '{}({})'.format(self.group.name, self.value)
-
-#     def __str__(self):
-#         return str(self.value)
-
-#     def __mul__(self, other):
-#         # Elements must come from the same group
-#         if not self.group == other.group:
-#             raise ValueError('elements are from different groups')
-#         product = self.group.products[(self.value, other.value)]
-#         return GroupElement(product, self.group)
-
-#     def __add__(self, other):
-#         if self.group.abelian:
-#             return self * other
-#         else:
-#             raise NotImplementedError('addition is not implemented for non-abelian groups')
-
-#     def __invert__(self):
-#         '''Find this element's inverse'''
-#         for candidate in self.group.group_set:
-#             if self.group.products[(self.value, candidate)] == self.group.identity.value:
-#                 return GroupElement(candidate, self.group)
-#         raise ValueError('no inverse found')
-
-
 class Group(Set):
     '''Group
 
     Attributes:
         products (dict): a mapping of pairs of elements to their product
-        group_set (Set): the underlying set
     '''
 
     def __init__(self, group_set: Set, products: dict) -> None:
         super().__init__(*group_set)
-        self.products = products
-        if not self.closed_under_products():
+        self._products = products
+        if not self.closed_under_products:
             raise ValueError('not closed under products')
-        self.identity = self.get_identity()
-        if self.identity is None:
+        self._identity = self.identity
+        if self._identity is None:
             raise ValueError('there is no identity element')
-        if not self.closed_under_inverses():
+        self._inverses = self.inverses
+        if self._inverses is None:
             raise ValueError('not closed under inverses')
-        if not self.is_associative():
+        if not self.is_associative:
             raise ValueError('not associative')
-        self.abelian = self.is_abelian()
     
     def __repr__(self):
         return 'Group({})'.format(', '.join(map(repr, self.elements)))
+
+    @property
+    def products(self) -> dict:
+        return self._products
         
+    @property
     def closed_under_products(self) -> bool:
         '''Check for closure under products'''
         # Check that nothing is included that is not in the group
-        for (factor1, factor2), product in self.products.items():
+        for (factor1, factor2), product in self._products.items():
             if not all([element in self for element in [factor1, factor2, product]]):
                 return False
         # Check that everything in the group is accounted for
         for pair in itertools.product(self, repeat=2):
-            if pair not in self.products:
+            if pair not in self._products:
                 return False
         return True
 
-    def get_identity(self) -> bool:
+    @property
+    def identity(self) -> bool:
         '''Check for an identity element'''
         # loop through each element to see if it is the identity
         for candidate in self:
             # Check its product with all elements to see if it's always absorbed
             if all([
-                    self.products[(candidate, other)] == self.products[(other, candidate)] == other
+                    self._products[(candidate, other)] == self._products[(other, candidate)] == other
                     for other in self
             ]):
                 return candidate
         return None
 
-    def closed_under_inverses(self) -> bool:
-        '''Check for inverses for each element
-        
-        This method has the side effect of creating a dictionary of inverses.
-        '''
-        self.inverses = {}
+    @property
+    def inverses(self) -> bool:
+        '''Find inverses for each element'''
+        inverses = {}
         # Loop through each element
         for element in self:
             # If we've already found element to be the inverse of something
-            if element in self.inverses.values():
+            if element in inverses.values():
                 # That something is the inverse of element
-                self.inverses[element] = list(self.inverses.keys())[list(self.inverses.values()).index(element)]
+                inverses[element] = list(inverses.keys())[list(inverses.values()).index(element)]
                 continue
             # Otherwise, we need to look for its inverse
             for other in self:
-                if self.products[(element, other)] == self.identity:
-                    self.inverses[element] = other
+                if self._products[(element, other)] == self._identity:
+                    inverses[element] = other
                     break
             else:
                 # If we got here, no inverse was found for element
-                return False
+                return None
         # If we got here, an inverse was found for every element
-        return True
+        return inverses
 
+    @property
     def is_associative(self) -> bool:
         '''Check that the group operation is associative'''
         triples = itertools.product(self, repeat=3)
         for a, b, c in triples:
-            if self.products[(self.products[(a, b)], c)] != self.products[(a, self.products[(b, c)])]:
+            if self._products[(self._products[(a, b)], c)] != self._products[(a, self._products[(b, c)])]:
                 return False
         return True
 
+    @property
     def is_abelian(self) -> bool:
         '''Check that the group is commutative'''
         pairs = itertools.combinations(self, 2)
-        if not all([self.products[(a, b)] == self.products[(b, a)] for a, b in pairs]):
+        if not all([self._products[(a, b)] == self._products[(b, a)] for a, b in pairs]):
             return False
         return True
     
     def inverse(self, element):
         '''Get the inverse of a group element'''
-        return self.inverses[element]
+        return self._inverses[element]
+
+    def order(self, element=None):
+        '''Get the order of the group or one of its elements'''
+        # If no element is specified, return the order of the group
+        if element is None:
+            return len(self)
+        # By Lagrange's Theorem, the order of an element divides the order of the (finite) group
+        for candidate, _ in enumerate(self, start=1):
+            if self(*[element] * candidate) == self._identity:
+                return candidate
+
+    def subproduct(self, subgroup_set: Set) -> dict:
+        '''Get inherited group product for a subgroup'''
+        pairs = list(itertools.product(subgroup_set, repeat=2))
+        subgroup_product = {pair: product for pair, product in self._products.items() if pair in pairs}
+        return subgroup_product
+
+    def subgroup(self, subgroup_set: Set):
+        '''Create a subgroup from a subset'''
+        # First verify that it's actually a subset
+        if not subgroup_set <= self.elements:
+            raise ValueError('not a subset')
+        # Get the inherited group product
+        subgroup_product = self.subproduct(subgroup_set)
+        # Try to build the subgroup
+        subgroup = Group(subgroup_set, subgroup_product)
+        return subgroup
+
+    def is_normal(self, subgroup) -> bool:
+        '''Check whether a subgroup is normal'''
+        # First verify that it's actually a subgroup
+        if not subgroup <= self:
+            raise ValueError('not a subgroup')
+        # If we're in an abelian group, every subgroup is normal
+        if self.is_abelian:
+            return True
+        # Loop through elements of the subgroup
+        for element in subgroup:
+            # Check that all congugates of element are in the subgroup
+            if not all([self(other, element, self.inverse(other)) in subgroup for other in self]):
+                return False
+        return True
+
+    def left_coset(self, element, subgroup):
+        '''Get the left coset element + subgroup'''
+        # Check that subgroup is actually a subgroup
+        if not subgroup <= self:
+            raise ValueError('not a subgroup')
+        # Construct the coset
+        coset = Set(*[self(element, s) for s in subgroup])
+        return coset
+
+    def right_coset(self, subgroup, element):
+        '''Get the right coset subgroup + element'''
+        # Check that subgroup is actually a subgroup
+        if not subgroup <= self:
+            raise ValueError('not a subgroup')
+        # Construct the coset
+        coset = Set(*[self(s, element) for s in subgroup])
+        return coset
+
+    def coset(self, subgroup, element):
+        '''Get the coset subgroup + element
+
+        Note this only works for normal subgroups. 
+        Otherwise left and right cosets are not equal.
+        '''
+        if not self.is_normal(subgroup):
+            raise ValueError('not a normal subgroup so left and right cosets are distinct')
+        return self.right_coset(subgroup, element)
+
+    def quotient(self, normal_subgroup):
+        '''Get the quotient group modulo a subgroup
+        
+        Note that this only works for normal subgroups.
+        '''
+        if not self.is_normal(normal_subgroup):
+            raise ValueError('not a normal subgroup so quotient group is not well defined')
+        # The quotient set consists of all cosets of normal_subgroup
+        quotient_set = Set()
+        for element in self:
+            coset = self.coset(normal_subgroup, element)
+            if coset not in quotient_set:
+                quotient_set.add(coset)
+        # The quotient product takes cosets wrt a and b and returns the coset wrt a*b
+        quotient_product = {}
+        for a, b in itertools.product(self, repeat=2):
+            coset_a = self.coset(normal_subgroup, a)
+            coset_b = self.coset(normal_subgroup, b)
+            if (coset_a, coset_b) not in quotient_product:
+                coset_ab = self.coset(normal_subgroup, self(a, b))
+                quotient_product[(coset_a, coset_b)] = coset_ab
+        # Construct the quotient group
+        quotient = Group(quotient_set, quotient_product)
+        return quotient
 
     def __call__(self, *elements):
         '''Compute the product of elements'''
-        product = self.identity
+        product = self._identity
         for element in elements:
-            product = self.products[(product, element)]
+            if element not in self:
+                raise ValueError('{} is not a group element'.format(element))
+            product = self._products[(product, element)]
         return product
 
     def __mul__(self, other):
@@ -168,13 +222,44 @@ class Group(Set):
         '''Check whether two groups are equal'''
         # Groups are equal if their underlying sets are equal
         # and they have the same products
-        return super().__eq__(other) and self.products == other.products
+        return super().__eq__(other) and self._products == other._products
     
-    def __leq__(self, other) -> bool:
+    def __le__(self, other) -> bool:
         '''Check whether a group is a subgroup of another'''
+        # By Lagrange's Theorem, if ord(self) does not divide ord(order) then it can't be a subgroup
+        if not other.order() % self.order() == 0:
+            return False
         # Self is a subgroup of other if it is a subset and
         # its product dictionary is a subdictionary of other's
-        return super().__leq__(other) and all(item in other.products.items() for item in self.products.items())
+        return super().__le__(other) and all([item in other._products.items() for item in self._products.items()])
+
+    def __lt__(self, other) -> bool:
+        '''Check whether a group is a proper subgroup of another'''
+        # By Lagrange's Theorem, if ord(self) does not divide ord(order) then it can't be a subgroup
+        if not other.order() % self.order() == 0:
+            return False
+        # Self is a proper subgroup of other if it is a proper subset and
+        # its product dictionary is a subdictionary of other's
+        return super().__lt__(other) and all([item in other._products.items() for item in self._products.items()])
+
+    def __ge__(self, other) -> bool:
+        '''Check whether a group is a supergroup of another'''
+        # By Lagrange's Theorem, if ord(other) does not divide ord(self) then it can't be a supergroup
+        if not self.order() % other.order() == 0:
+            return False
+        # Self is a supergroup of other if it is a superset and
+        # its product dictionary is a superdictionary of other's
+        return super().__ge__(other) and all([item in self._products.items() for item in other._products.items()])
+
+    def __gt__(self, other) -> bool:
+        '''Check whether a group is a proper supergroup of another'''
+        # By Lagrange's Theorem, if ord(other) does not divide ord(self) then it can't be a supergroup
+        if not self.order() % other.order() == 0:
+            return False
+        # Self is a proper supergroup of other if it is a superset and
+        # its product dictionary is a superdictionary of other's
+        return super().__gt__(other) and all([item in self._products.items() for item in other._products.items()])
+
 
 class GroupFunction(Function):
     '''GroupFunction (mapping between Groups)
@@ -191,15 +276,15 @@ class GroupFunction(Function):
         kernel(Group): the kernel of the homomorphism
     '''
 
-    def __init__(self, mapping: dict, domain: Group, codomain: Group, name: str):
+    def __init__(self, mapping: dict, domain: Group, codomain: Group):
         if not isinstance(domain, Group) or not isinstance(codomain, Group):
             raise TypeError('domain and codomain must be of type Group')
-        super().__init__(mapping, domain, codomain, name)
+        super().__init__(mapping, domain, codomain)
 
     def __matmul__(self, other):
         '''Create a new function from the composition self . other'''
         mapping = {k: self.mapping[other.mapping[k]] for k in other.mapping}
-        return GroupFunction(mapping, other.domain, self.codomain, '{}@{}'.format(self.name, other.name))
+        return GroupFunction(mapping, other.domain, self.codomain)
 
     @property
     def inverse(self):
@@ -207,13 +292,13 @@ class GroupFunction(Function):
         if not self.is_bijective:
             raise ValueError('this function is not invertible')
         mapping = {v: k for k, v in self.mapping.items()}
-        return GroupFunction(mapping, self.codomain, self.domain, '~{}'.format(self.name))
+        return GroupFunction(mapping, self.codomain, self.domain)
 
     @property
     def is_homomorphism(self):
         '''Check whether a function between groups is a homomorphism'''
         pairs = itertools.product(self.domain, repeat=2)
-        if not all([self(first * second) == self(first) * self(second) for first, second in pairs]):
+        if not all([self(self.domain(a, b)) == self.codomain(self(a), self(b)) for a, b in pairs]):
             return False
         return True
 
@@ -239,8 +324,8 @@ class GroupFunction(Function):
         for element in self.domain:
             # Check whether each element gets mapped to the identity in the codomain
             if self(element) == self.codomain.identity:
-                ker_set.add(element.value)
+                ker_set.add(element)
         # Filter the domain's product for the kernel
         ker_product = {(a, b): c for (a, b), c in self.domain.products.items() if a in ker_set and b in ker_set}
-        ker = Group(ker_set, ker_product, 'ker({})'.format(self.name))
+        ker = Group(ker_set, ker_product)
         return ker

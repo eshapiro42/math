@@ -3,11 +3,11 @@ from .group import *
 
 
 class Zn:
-    '''Additive Group of Integers Modulo x'''
+    '''Additive Group of Integers Modulo n'''
     def __init__(self, n):
         self.Zn_set = Set(*range(n))
         self.Zn_products = {(a, b): (a + b) % n for a, b in itertools.product(self.Zn_set, repeat=2)}
-        self.Zn = Group(self.Zn_set, self.Zn_products, 'Z{}'.format(n))
+        self.Zn = Group(self.Zn_set, self.Zn_products)
 
 
 class Mp:
@@ -17,7 +17,7 @@ class Mp:
             raise ValueError('modulus is not prime')
         self.Mp_set = Set(*range(1, p))
         self.Mp_products = {(a, b): (a * b) % p for a, b in itertools.product(self.Mp_set, repeat=2)}
-        self.Mp = Group(self.Mp_set, self.Mp_products, 'M{}'.format(p))
+        self.Mp = Group(self.Mp_set, self.Mp_products)
 
 
 class D3:
@@ -39,6 +39,6 @@ class D3:
         (d, e): d, (d, a): c, (d, b): a, (d, c): b, (d, d): f, (d, f): e,
         (f, e): f, (f, a): b, (f, b): c, (f, c): a, (f, d): e, (f, f): d,
     }
-    D3 = Group(D3_set, D3_products, 'D3')
+    D3 = Group(D3_set, D3_products)
 
 

@@ -9,55 +9,55 @@ from common import (
 )
 
 
-class GroupElement(collections.Hashable):
-    '''GroupElement'''
+# class GroupElement(collections.Hashable):
+#     '''GroupElement'''
 
-    def __init__(self, value, group):
-        if value not in group:
-            raise ValueError('value is not in group')
-        self.value = value
-        self.group = group
+#     def __init__(self, value, group):
+#         if value not in group:
+#             raise ValueError('value is not in group')
+#         self.value = value
+#         self.group = group
 
-    def __hash__(self):
-        return super().__hash__()
+#     def __hash__(self):
+#         return super().__hash__()
 
-    def __eq__(self, other):
-        '''Test whether two GroupElements are equal.
+#     def __eq__(self, other):
+#         '''Test whether two GroupElements are equal.
 
-        This checks only the element's value and does not demand they come from
-        the same group. This is purposely done so that subgroup elements will
-        be treated as belonging to multiple groups.
-        '''
-        return self.value == other.value
+#         This checks only the element's value and does not demand they come from
+#         the same group. This is purposely done so that subgroup elements will
+#         be treated as belonging to multiple groups.
+#         '''
+#         return self.value == other.value
 
-    def __repr__(self):
-        return '{}({})'.format(self.group.name, self.value)
+#     def __repr__(self):
+#         return '{}({})'.format(self.group.name, self.value)
 
-    def __str__(self):
-        return str(self.value)
+#     def __str__(self):
+#         return str(self.value)
 
-    def __mul__(self, other):
-        # Elements must come from the same group
-        if not self.group == other.group:
-            raise ValueError('elements are from different groups')
-        product = self.group.products[(self.value, other.value)]
-        return GroupElement(product, self.group)
+#     def __mul__(self, other):
+#         # Elements must come from the same group
+#         if not self.group == other.group:
+#             raise ValueError('elements are from different groups')
+#         product = self.group.products[(self.value, other.value)]
+#         return GroupElement(product, self.group)
 
-    def __add__(self, other):
-        if self.group.abelian:
-            return self * other
-        else:
-            raise NotImplementedError('addition is not implemented for non-abelian groups')
+#     def __add__(self, other):
+#         if self.group.abelian:
+#             return self * other
+#         else:
+#             raise NotImplementedError('addition is not implemented for non-abelian groups')
 
-    def __invert__(self):
-        '''Find this element's inverse'''
-        for candidate in self.group.group_set:
-            if self.group.products[(self.value, candidate)] == self.group.identity.value:
-                return GroupElement(candidate, self.group)
-        raise ValueError('no inverse found')
+#     def __invert__(self):
+#         '''Find this element's inverse'''
+#         for candidate in self.group.group_set:
+#             if self.group.products[(self.value, candidate)] == self.group.identity.value:
+#                 return GroupElement(candidate, self.group)
+#         raise ValueError('no inverse found')
 
 
-class Group:
+class Group(Set):
     '''Group
 
     Attributes:
@@ -65,126 +65,116 @@ class Group:
         group_set (Set): the underlying set
     '''
 
-    def __init__(self, group_set: Set, products: dict, name: str) -> None:
-        self.group_set = group_set
+    def __init__(self, group_set: Set, products: dict) -> None:
+        super().__init__(*group_set)
         self.products = products
-        self.name = name
-        if not self.closed_under_products(group_set, products):
+        if not self.closed_under_products():
             raise ValueError('not closed under products')
-        identity = self.get_identity(group_set, products)
-        if identity is None:
+        self.identity = self.get_identity()
+        if self.identity is None:
             raise ValueError('there is no identity element')
-        if not self.closed_under_inverses(group_set, products, identity):
+        if not self.closed_under_inverses():
             raise ValueError('not closed under inverses')
-        if not self.is_associative(group_set, products):
+        if not self.is_associative():
             raise ValueError('not associative')
-        self.abelian = self.is_abelian(group_set, products)
-        self.identity = GroupElement(identity, self)
-
-    @staticmethod
-    def closed_under_products(group_set: Set, products: dict) -> bool:
+        self.abelian = self.is_abelian()
+    
+    def __repr__(self):
+        return 'Group({})'.format(', '.join(map(repr, self.elements)))
+        
+    def closed_under_products(self) -> bool:
         '''Check for closure under products'''
-        # Check that nothing is included that is not in group_set
-        for key, value in products.items():
-            if not all([element in group_set for element in [key[0], key[1], value]]):
+        # Check that nothing is included that is not in the group
+        for (factor1, factor2), product in self.products.items():
+            if not all([element in self for element in [factor1, factor2, product]]):
                 return False
-        # Check that everything in group_set is accounted for
-        for pair in itertools.product(group_set, repeat=2):
-            if pair not in products:
+        # Check that everything in the group is accounted for
+        for pair in itertools.product(self, repeat=2):
+            if pair not in self.products:
                 return False
         return True
 
-    @staticmethod
-    def get_identity(group_set: Set, products: dict) -> bool:
+    def get_identity(self) -> bool:
         '''Check for an identity element'''
         # loop through each element to see if it is the identity
-        for candidate in group_set:
+        for candidate in self:
             # Check its product with all elements to see if it's always absorbed
             if all([
-                    products[(candidate, other)] == products[(other, candidate)] == other
-                    for other in group_set
+                    self.products[(candidate, other)] == self.products[(other, candidate)] == other
+                    for other in self
             ]):
                 return candidate
         return None
 
-    @staticmethod
-    def closed_under_inverses(group_set: Set, products: dict, identity) -> bool:
-        # Loop through each element
-        for element in group_set:
-            # Check that it has an inverse
-            if not any([products[(element, other)] == identity for other in group_set]):
-                return False
-        return True
-
-    @staticmethod
-    def is_associative(group_set: Set, products: dict) -> bool:
-        '''Check that the group operation is associative'''
-        triples = itertools.product(group_set, repeat=3)
-        for a, b, c in triples:
-            if products[(products[(a, b)], c)] != products[(a, products[(b, c)])]:
-                return False
-        return True
-
-    @staticmethod
-    def is_abelian(group_set: Set, products: dict) -> bool:
-        '''Check that the group is commutative
+    def closed_under_inverses(self) -> bool:
+        '''Check for inverses for each element
+        
+        This method has the side effect of creating a dictionary of inverses.
         '''
-        pairs = itertools.combinations(group_set, 2)
-        if not all([products[(a, b)] == products[(b, a)] for a, b in pairs]):
+        self.inverses = {}
+        # Loop through each element
+        for element in self:
+            # If we've already found element to be the inverse of something
+            if element in self.inverses.values():
+                # That something is the inverse of element
+                self.inverses[element] = list(self.inverses.keys())[list(self.inverses.values()).index(element)]
+                continue
+            # Otherwise, we need to look for its inverse
+            for other in self:
+                if self.products[(element, other)] == self.identity:
+                    self.inverses[element] = other
+                    break
+            else:
+                # If we got here, no inverse was found for element
+                return False
+        # If we got here, an inverse was found for every element
+        return True
+
+    def is_associative(self) -> bool:
+        '''Check that the group operation is associative'''
+        triples = itertools.product(self, repeat=3)
+        for a, b, c in triples:
+            if self.products[(self.products[(a, b)], c)] != self.products[(a, self.products[(b, c)])]:
+                return False
+        return True
+
+    def is_abelian(self) -> bool:
+        '''Check that the group is commutative'''
+        pairs = itertools.combinations(self, 2)
+        if not all([self.products[(a, b)] == self.products[(b, a)] for a, b in pairs]):
             return False
         return True
+    
+    def inverse(self, element):
+        '''Get the inverse of a group element'''
+        return self.inverses[element]
 
-    def __call__(self, element):
-        '''Returns a GroupElement from element'''
-        return GroupElement(element, self)
-
-    def __contains__(self, element):
-        '''Check whether an element is in the group'''
-        if isinstance(element, GroupElement):
-            return element in map(lambda x: GroupElement(x, self), self.group_set)
-        return element in self.group_set
-
-    def __iter__(self):
-        return iter(map(lambda x: GroupElement(x, self), self.group_set))
+    def __call__(self, *elements):
+        '''Compute the product of elements'''
+        product = self.identity
+        for element in elements:
+            product = self.products[(product, element)]
+        return product
 
     def __mul__(self, other):
-        '''Given two groups, return their direct product'''
-        pass
+        '''Given two groups, compute their direct product'''
+        product_set = Set(*itertools.product(self, other))
+        pairs = itertools.product(product_set, repeat=2)
+        product_product = {((a, b), (c, d)): (self(a, c), other(b, d)) for (a, b), (c, d) in pairs}
+        product = Group(product_set, product_product)
+        return product
 
     def __eq__(self, other) -> bool:
         '''Check whether two groups are equal'''
         # Groups are equal if their underlying sets are equal
         # and they have the same products
-        return self.group_set == other.group_set and self.products == other.products
-
-    def __le__(self, other) -> bool:
-        '''Check whether a group is a subset of another'''
-        try:
-            return self.group_set <= other.group_set
-        except:
-            return self.group_set <= other
-
-    def __lt__(self, other) -> bool:
-        '''Check whether a group is a proper subset of another'''
-        try:
-            return self.group_set < other.group_set
-        except:
-            return self.group_set < other
-
-    def __ge__(self, other) -> bool:
-        '''Check whether a set or group is a superset of another'''
-        try:
-            return other.group_set <= self.group_set
-        except:
-            return other <= self.group_set
-
-    def __gt__(self, other) -> bool:
-        '''Check whether a set or group is a proper superset of another'''
-        try:
-            return other.group_set < self.group_set
-        except:
-            return other < self.group_set
-
+        return super().__eq__(other) and self.products == other.products
+    
+    def __leq__(self, other) -> bool:
+        '''Check whether a group is a subgroup of another'''
+        # Self is a subgroup of other if it is a subset and
+        # its product dictionary is a subdictionary of other's
+        return super().__leq__(other) and all(item in other.products.items() for item in self.products.items())
 
 class GroupFunction(Function):
     '''GroupFunction (mapping between Groups)

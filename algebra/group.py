@@ -101,7 +101,7 @@ class Group(Set):
         if not all([self._products[(a, b)] == self._products[(b, a)] for a, b in pairs]):
             return False
         return True
-    
+ 
     def inverse(self, element):
         '''Get the inverse of a group element'''
         return self._inverses[element]
@@ -200,6 +200,26 @@ class Group(Set):
         # Construct the quotient group
         quotient = Group(quotient_set, quotient_product)
         return quotient
+
+    @property
+    def center(self):
+        '''Get the center of a group'''
+        center_set = Set(*[element for element in self if all([self(element, other) == self(other, element) for other in self])])
+        center = self.subgroup(center_set)
+        return center
+
+    @property
+    def commutator_subgroup(self):
+        '''Get the commutator subgroup of a group'''
+        pairs = itertools.product(self, repeat=2)
+        commutator_subgroup_set = Set(*[self(self.inverse(a), self.inverse(b), a, b) for a, b in pairs])
+        commutator_subgroup = self.subgroup(commutator_subgroup_set)
+        return commutator_subgroup
+
+    @property
+    def abelianization(self):
+        '''Get the abelianization of a group'''
+        return self.quotient(self.commutator_subgroup)
 
     def __call__(self, *elements):
         '''Compute the product of elements'''

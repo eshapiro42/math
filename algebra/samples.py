@@ -1,44 +1,42 @@
 from sympy import isprime
+from operator import attrgetter
 from .group import *
 
 
 class Zn:
     '''Additive Group of Integers Modulo n'''
-    def __init__(self, n):
-        self.Zn_set = Set(*range(n))
-        self.Zn_products = {(a, b): (a + b) % n for a, b in itertools.product(self.Zn_set, repeat=2)}
-        self.Zn = Group(self.Zn_set, self.Zn_products)
+    def __new__(cls, n):
+        group_set = Set(*range(n))
+        group_products = {(a, b): (a + b) % n for a, b in itertools.product(group_set, repeat=2)}
+        group = Group(group_set, group_products)
+        return group
 
 
 class Mp:
     '''Multiplicative Group of Integers Modulo a Prime p'''
-    def __init__(self, p):
+    def __new__(cls, p):
         if not isprime(p):
             raise ValueError('modulus is not prime')
-        self.Mp_set = Set(*range(1, p))
-        self.Mp_products = {(a, b): (a * b) % p for a, b in itertools.product(self.Mp_set, repeat=2)}
-        self.Mp = Group(self.Mp_set, self.Mp_products)
+        group_set = Set(*range(1, p))
+        group_products = {(a, b): (a * b) % p for a, b in itertools.product(group_set, repeat=2)}
+        group = Group(group_set, group_products)
+        return group
 
 
-class D3:
-    '''Dihedral Group of Order 6 — Smallest non-abelian group'''
+class Dn:
+    '''Dihedral Group of Order 2n'''
+    def __new__(cls, n):
+        r = ['r{}'.format(i) for i in range(n)]
+        f = ['f{}'.format(i) for i in range(n)]
 
-    e = 'e'
-    a = 'a'
-    b = 'b'
-    c = 'c'
-    d = 'd'
-    f = 'f'
+        group_set = Set(*(r + f))
+        group_products = {}
 
-    D3_set = Set(e, a, b, c, d, f)
-    D3_products = {
-        (e, e): e, (e, a): a, (e, b): b, (e, c): c, (e, d): d, (e, f): f, 
-        (a, e): a, (a, a): e, (a, b): d, (a, c): f, (a, d): b, (a, f): c,
-        (b, e): b, (b, a): f, (b, b): e, (b, c): d, (b, d): c, (b, f): a,
-        (c, e): c, (c, a): d, (c, b): f, (c, c): e, (c, d): a, (c, f): b,
-        (d, e): d, (d, a): c, (d, b): a, (d, c): b, (d, d): f, (d, f): e,
-        (f, e): f, (f, a): b, (f, b): c, (f, c): a, (f, d): e, (f, f): d,
-    }
-    D3 = Group(D3_set, D3_products)
+        for i, j in itertools.product(range(0, n), repeat=2):
+            group_products[r[i], r[j]] = r[(i + j) % n]
+            group_products[r[i], f[j]] = f[(i + j) % n]
+            group_products[f[i], r[j]] = f[(i - j) % n]
+            group_products[f[i], f[j]] = r[(i - j) % n]
 
-
+        group = Group(group_set, group_products)
+        return group
